@@ -23,8 +23,6 @@ import (
 	stdiotransport "github.com/lucacox/go-mcp/pkg/transport/stdio"
 )
 
-// Replace "github.com/lucacox/go-mcp" with your actual Go module
-
 // Server represents an MCP server that manages client connections
 type Server struct {
 	// Server ID

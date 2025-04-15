@@ -19,8 +19,6 @@ import (
 	"github.com/lucacox/go-mcp/pkg/protocol"
 )
 
-// Replace "github.com/lucacox/go-mcp" with your actual Go module
-
 // Client represents an MCP client that connects to a server
 type Client struct {
 	// Client ID
