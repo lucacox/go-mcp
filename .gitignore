@@ -1,0 +1,6 @@
+MYPIPE
+main
+mcp-server-test
+go-mcp-test
+__debug*
+.vscode
