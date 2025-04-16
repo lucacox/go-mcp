@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-
-	"github.com/lucacox/go-mcp/internal/logging"
 )
 
 // ProtocolVersion represents the version of the MCP protocol
@@ -103,8 +101,6 @@ func NewEndpointRegistry() *EndpointRegistry {
 func (r *EndpointRegistry) RegisterEndpoint(endpoint Endpoint) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-
-	logging.Info(logging.NewLoggerFactory().CreateLogger("endpoint-registry"), "Registering endpoint", "endpoint", endpoint.GetNamespace())
 
 	r.endpoints[endpoint.GetNamespace()] = endpoint
 }

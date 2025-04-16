@@ -113,7 +113,7 @@ func (s *Server) HandleConnection(transport protocol.Transport) {
 	s.sessions[session.ID] = session
 	s.sessionsMutex.Unlock()
 
-	// Imposta l'ID della sessione nel dispatcher
+	// Set the session ID in the dispatcher
 	dispatcher.SetSessionID(session.ID)
 
 	// Start the dispatcher
@@ -138,7 +138,7 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 		}
 	}
 
-	// Recupera l'ID della sessione dal contesto
+	// Get the session ID from the context
 	sessionID, ok := protocol.GetSessionID(ctx)
 	if !ok {
 		return nil, &protocol.JSONRPCError{
@@ -147,7 +147,7 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 		}
 	}
 
-	// Trova la sessione utilizzando l'ID
+	// Find the session using the ID
 	s.sessionsMutex.RLock()
 	session, exists := s.sessions[sessionID]
 	s.sessionsMutex.RUnlock()
@@ -194,10 +194,10 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 }
 
 func (s *Server) handlePing(ctx context.Context, params json.RawMessage) (interface{}, error) {
-	// Recupera l'ID della sessione dal contesto (per logging, etc.)
+	// Get the session ID from the context (for logging, etc.)
 	sessionID, ok := protocol.GetSessionID(ctx)
 	if ok && s.logger != nil {
-		logging.Debug(s.logger, "Ping ricevuto", slog.String("sessionID", sessionID))
+		logging.Debug(s.logger, "Ping received", slog.String("sessionID", sessionID))
 	}
 
 	// respond with an empty Response
@@ -205,7 +205,7 @@ func (s *Server) handlePing(ctx context.Context, params json.RawMessage) (interf
 }
 
 func (s *Server) handleInitialized(ctx context.Context, params json.RawMessage) (interface{}, error) {
-	// Recupera l'ID della sessione dal contesto
+	// Get the session ID from the context
 	sessionID, ok := protocol.GetSessionID(ctx)
 	if !ok {
 		return nil, &protocol.JSONRPCError{
@@ -214,7 +214,7 @@ func (s *Server) handleInitialized(ctx context.Context, params json.RawMessage) 
 		}
 	}
 
-	// Trova la sessione utilizzando l'ID
+	// Find the session using the ID
 	s.sessionsMutex.RLock()
 	session, exists := s.sessions[sessionID]
 	s.sessionsMutex.RUnlock()
@@ -288,7 +288,7 @@ func (s *Server) Shutdown() {
 	s.CloseAllSessions()
 }
 
-// Start avvia il server sugli transport configurati
+// Start starts the server on the configured transports
 func (s *Server) Start(ctx context.Context) error {
 	if s.logger != nil {
 		logging.Info(s.logger, "Starting MCP server",
@@ -308,7 +308,7 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
-// StartWithOptions avvia il server utilizzando le opzioni specificate per ciascun transport
+// StartWithOptions starts the server using the specified options for each transport
 func (s *Server) StartWithOptions(ctx context.Context, transportOptions map[string]map[string]interface{}) error {
 	if s.logger != nil {
 		logging.Info(s.logger, "Starting MCP server with custom options",
@@ -326,23 +326,23 @@ func (s *Server) StartWithOptions(ctx context.Context, transportOptions map[stri
 	return nil
 }
 
-// startTransport avvia un transport specifico con le opzioni predefinite
+// startTransport starts a specific transport with default options
 func (s *Server) startTransport(ctx context.Context, transportType string) error {
 	options := make(map[string]interface{})
 
-	// Configura opzioni predefinite in base al tipo di transport
+	// Configure default options based on transport type
 	switch transportType {
 	case protocol.TransportTypeStdio:
-		// Nessuna opzione speciale richiesta per stdio
+		// No special options required for stdio
 	case protocol.TransportTypeHTTP:
-		// Opzioni predefinite per HTTP (porta 8080)
+		// Default options for HTTP (port 8080)
 		options["listenAddress"] = ":8080"
 	}
 
 	return s.startTransportWithOptions(ctx, transportType, options)
 }
 
-// startTransportWithOptions avvia un transport specifico con le opzioni fornite
+// startTransportWithOptions starts a specific transport with the provided options
 func (s *Server) startTransportWithOptions(ctx context.Context, transportType string, options map[string]interface{}) error {
 	if s.logger != nil {
 		logging.Info(s.logger, "Starting transport",
@@ -355,12 +355,12 @@ func (s *Server) startTransportWithOptions(ctx context.Context, transportType st
 		return err
 	}
 
-	// Per i transport HTTP, avvia il server
+	// For HTTP transports, start the server
 	if transportType == protocol.TransportTypeHTTP {
 		if httpTransport, ok := transport.(*httptransport.HTTPTransport); ok {
-			// Configura un handler HTTP che gestisce le connessioni in arrivo
+			// Configure an HTTP handler that manages incoming connections
 			_ = httptransport.NewHTTPHandler(func(data []byte) []byte {
-				// Crea una nuova connessione per ogni richiesta
+				// Create a new connection for each request
 				s.HandleConnection(httpTransport)
 				return []byte(`{"result":"ok"}`)
 			})
@@ -370,7 +370,7 @@ func (s *Server) startTransportWithOptions(ctx context.Context, transportType st
 			}
 		}
 	} else if transportType == protocol.TransportTypeStdio {
-		// Per STDIO, avvia il transport e inizia a gestire le connessioni
+		// For STDIO, start the transport and begin handling connections
 		if stdioTransport, ok := transport.(*stdiotransport.STDIOTransport); ok {
 			stdioTransport.Start()
 			go s.HandleConnection(stdioTransport)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -137,7 +138,9 @@ func (d *JSONRPCDispatcher) Stop() {
 func (d *JSONRPCDispatcher) receiveLoop() {
 	defer d.wg.Done()
 
-	ctx := context.Background()
+	// don't know if this is ok...
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
 	for {
 		select {
 		case <-d.shutdown:
@@ -145,13 +148,13 @@ func (d *JSONRPCDispatcher) receiveLoop() {
 		default:
 			data, err := d.transport.Receive(ctx)
 			if err != nil {
-				// Handle reception error
+				// TODO: Handle reception error
 				continue
 			}
 
 			var message JSONRPCMessage
 			if err := json.Unmarshal(data, &message); err != nil {
-				// Parsing error
+				// TODO: Handle parsing error
 				continue
 			}
 
@@ -219,7 +222,8 @@ func (d *JSONRPCDispatcher) handleNotification(ctx context.Context, msg *JSONRPC
 
 // handleResponse handles a received RPC response
 func (d *JSONRPCDispatcher) handleResponse(msg *JSONRPCMessage) {
-	idStr := string(msg.ID)
+	var idStr string
+	json.Unmarshal(msg.ID, &idStr)
 
 	d.pendingMux.Lock()
 	defer d.pendingMux.Unlock()
