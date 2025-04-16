@@ -133,7 +133,7 @@ func TestEndpointRegistry_HandleRequest(t *testing.T) {
 	// Define a test handler for the endpoint
 	testHandler := func(ctx context.Context, params json.RawMessage) (interface{}, error) {
 		var input map[string]string
-		if params != nil && len(params) > 0 {
+		if len(params) > 0 {
 			_ = json.Unmarshal(params, &input)
 		}
 		return map[string]string{"status": "success", "echo": input["value"]}, nil
