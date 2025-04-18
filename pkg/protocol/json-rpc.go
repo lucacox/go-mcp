@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lucacox/go-mcp/internal/logging"
 )
 
 // JSON-RPC 2.0 error codes
@@ -106,17 +108,20 @@ type JSONRPCDispatcher struct {
 	pendingMux sync.Mutex
 	shutdown   chan struct{}
 	wg         sync.WaitGroup
-	sessionID  string // ID della sessione associata a questo dispatcher
+	sessionID  string       // ID della sessione associata a questo dispatcher
+	logger     *slog.Logger // Optional logger for error reporting
 }
 
 // NewJSONRPCDispatcher creates a new JSON-RPC dispatcher
 func NewJSONRPCDispatcher(transport Transport, handler RPCHandler) *JSONRPCDispatcher {
+	factory := logging.NewLoggerFactory()
 	dispatcher := &JSONRPCDispatcher{
 		transport:  transport,
 		handler:    handler,
 		pending:    make(map[string]chan *JSONRPCMessage),
 		pendingMux: sync.Mutex{},
 		shutdown:   make(chan struct{}),
+		logger:     factory.CreateLogger("dispatcher"),
 	}
 
 	return dispatcher
@@ -138,23 +143,28 @@ func (d *JSONRPCDispatcher) Stop() {
 func (d *JSONRPCDispatcher) receiveLoop() {
 	defer d.wg.Done()
 
-	// don't know if this is ok...
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
 	for {
 		select {
 		case <-d.shutdown:
 			return
 		default:
+			// Create a new context with timeout for each receive attempt
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			data, err := d.transport.Receive(ctx)
+			cancel() // Cancel the context immediately after use
+
 			if err != nil {
-				// TODO: Handle reception error
+				// Add a small sleep to avoid CPU spinning when no messages are available
+				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 
 			var message JSONRPCMessage
 			if err := json.Unmarshal(data, &message); err != nil {
-				// TODO: Handle parsing error
+				// Log the error but don't consume 100% CPU
+				if d.logger != nil {
+					logging.Warn(d.logger, "error unmarshaling message", "error", err)
+				}
 				continue
 			}
 

@@ -91,8 +91,36 @@ func (t *STDIOTransport) readLoop() {
 		case <-t.done:
 			return
 		default:
-			// Read the input line
-			line, err := t.reader.ReadBytes('\n')
+			// Try to read with timeout to prevent busy loop
+			// Set readDeadline if possible to make Read non-blocking
+			// Otherwise, the loop will continue reading and consume CPU
+			var line []byte
+			var err error
+
+			// Start a new goroutine to read with timeout to avoid blocking forever
+			readChan := make(chan struct{})
+			var readErr error
+			var readData []byte
+
+			go func() {
+				readData, readErr = t.reader.ReadBytes('\n')
+				close(readChan)
+			}()
+
+			// Wait for read to complete or timeout
+			select {
+			case <-t.done:
+				return
+			case <-readChan:
+				// Read completed
+				line = readData
+				err = readErr
+			case <-time.After(100 * time.Millisecond):
+				// Read operation is taking too long, let's yield CPU
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+
 			line = bytes.TrimSpace(line)
 			if err != nil {
 				if err == io.EOF {
@@ -108,6 +136,8 @@ func (t *STDIOTransport) readLoop() {
 				} else {
 					// Other reading errors
 					logging.Error(t.logger, "error reading from stdin", "error", err)
+					// Add significant sleep to prevent CPU spinning on repeated errors
+					time.Sleep(100 * time.Millisecond)
 					continue
 				}
 			}
@@ -115,6 +145,9 @@ func (t *STDIOTransport) readLoop() {
 			if len(line) > 0 {
 				// Add the message to the incoming messages channel
 				t.incomingMessages <- line
+			} else {
+				// Empty line, sleep a bit to prevent CPU spinning
+				time.Sleep(10 * time.Millisecond)
 			}
 		}
 	}
