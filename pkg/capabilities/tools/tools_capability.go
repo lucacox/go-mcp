@@ -18,9 +18,9 @@ type ToolsCapability struct {
 	ListChanged bool
 	registry    *ToolRegistry
 	callbacks   ToolsCapabilityCallbacks
-	// Endpoint associato a questa capability
+	// Endpoint associated with this capability
 	endpoint *ToolsEndpoint
-	// Session attive che utilizzano questa capability
+	// Active Session that this capability is associated with
 	sessions   map[string]*protocol.Session
 	sessionsMu sync.RWMutex
 }
