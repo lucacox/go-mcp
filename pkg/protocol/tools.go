@@ -4,7 +4,7 @@ package protocol
 type Tool struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
-	InputSchema *JSONSchema            `json:"inputSchema"`
+	InputSchema *JSONSchema            `json:"inputSchema,omitempty"`
 	Annotations map[string]interface{} `json:"annotations,omitempty"`
 }
 
