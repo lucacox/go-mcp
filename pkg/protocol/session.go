@@ -63,7 +63,23 @@ func (s SessionState) String() string {
 
 // CapabilityDefinition represents the definition of a supported capability
 type CapabilityDefinition struct {
-	Options json.RawMessage `json:"options,omitempty"`
+	// Using a raw message allows for dynamic fields in JSON
+	// without explicitly defining them in the struct
+	Options json.RawMessage `json:"-"` // Hide this field from JSON output
+}
+
+// MarshalJSON implements custom JSON marshaling for CapabilityDefinition
+func (c CapabilityDefinition) MarshalJSON() ([]byte, error) {
+	if c.Options == nil {
+		return []byte("{}"), nil
+	}
+	return c.Options, nil
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for CapabilityDefinition
+func (c *CapabilityDefinition) UnmarshalJSON(data []byte) error {
+	c.Options = json.RawMessage(data)
+	return nil
 }
 
 // InitializeParams represents the initialization parameters of a session

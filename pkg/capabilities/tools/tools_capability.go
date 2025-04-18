@@ -89,11 +89,11 @@ func NewToolsCapability(options ...ToolsCapabilityOption) *ToolsCapability {
 		option(tc)
 	}
 
-	// Set default options
-	optionsData := map[string]interface{}{
+	// Create a proper JSON object with listChanged as a field
+	optionsMap := map[string]interface{}{
 		"listChanged": tc.ListChanged,
 	}
-	optionsJSON, _ := json.Marshal(optionsData)
+	optionsJSON, _ := json.Marshal(optionsMap)
 	tc.OptionsData = optionsJSON
 
 	return tc

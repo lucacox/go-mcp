@@ -176,8 +176,17 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 		}
 	}
 
-	// Store the server capabilities in the session
+	// Store the server capabilities and info in the session
+	session.ServerID = s.ID
 	session.ServerCapabilities = serverCapabilities
+	session.ServerInfo = map[string]string{
+		"name":    s.Name,
+		"version": s.Version,
+	}
+	// Add any additional server info
+	for k, v := range s.Info {
+		session.ServerInfo[k] = v
+	}
 
 	// Initialize the session
 	result, err := session.Initialize(ctx, &initParams, version)
@@ -188,8 +197,6 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 		}
 	}
 
-	// Make sure the result includes our server capabilities
-	result.Capabilities = serverCapabilities
 	return result, nil
 }
 
@@ -397,8 +404,13 @@ func (s *Server) GetCapabilities(ctx context.Context) (map[string]protocol.Capab
 
 	for _, cap := range s.capabilityRegistry.GetCapabilities() {
 		capType := cap.GetType()
+
+		// Get the raw options JSON
+		rawOptions := cap.GetOptions()
+
+		// Create the capability definition with direct options
 		capabilities[string(capType)] = protocol.CapabilityDefinition{
-			Options: cap.GetOptions(),
+			Options: rawOptions,
 		}
 	}
 
