@@ -412,3 +412,16 @@ func (s *Server) GetCapability(capType capability.CapabilityType) (capability.Ca
 	}
 	return cap, nil
 }
+
+func (s *Server) AddTool(tool *tools.ToolWithHandler) error {
+	cap := s.capabilityRegistry.GetCapability(capability.Tools)
+	if cap == nil {
+		return fmt.Errorf("tools capability not found")
+	}
+	if toolsCap, ok := cap.(*tools.ToolsCapability); ok {
+		toolsCap.RegisterTool(tool)
+	} else {
+		return fmt.Errorf("failed to cast capability to ToolsCapability")
+	}
+	return nil
+}
