@@ -320,5 +320,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgements
 
-- [Model Context Protocol](https://github.com/microsoft/model-context-protocol) - The original protocol specification
+- [Model Context Protocol](https://modelcontextprotocol.io/specification/2025-03-26) - The original protocol specification
 - [JSON-RPC 2.0](https://www.jsonrpc.org/specification) - The underlying RPC protocol
