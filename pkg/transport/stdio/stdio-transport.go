@@ -86,68 +86,60 @@ func (t *STDIOTransport) Start() {
 func (t *STDIOTransport) readLoop() {
 	defer t.wg.Done()
 
-	for {
-		select {
-		case <-t.done:
-			return
-		default:
-			// Try to read with timeout to prevent busy loop
-			// Set readDeadline if possible to make Read non-blocking
-			// Otherwise, the loop will continue reading and consume CPU
-			var line []byte
-			var err error
+	// Use a single channel for data with a buffer to reduce potential blocking
+	dataChannel := make(chan []byte, 100)
 
-			// Start a new goroutine to read with timeout to avoid blocking forever
-			readChan := make(chan struct{})
-			var readErr error
-			var readData []byte
+	// Start a goroutine that continuously reads from stdin
+	go func() {
+		for !t.closed {
+			readData, readErr := t.reader.ReadBytes('\n')
 
-			go func() {
-				readData, readErr = t.reader.ReadBytes('\n')
-				close(readChan)
-			}()
+			// logging.Debug(t.logger, "readLoop: read from stdin", "data", string(readData), "error", readErr)
 
-			// Wait for read to complete or timeout
-			select {
-			case <-t.done:
-				return
-			case <-readChan:
-				// Read completed
-				line = readData
-				err = readErr
-			case <-time.After(100 * time.Millisecond):
-				// Read operation is taking too long, let's yield CPU
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-
-			line = bytes.TrimSpace(line)
-			if err != nil {
-				if err == io.EOF {
-					// With a named pipe (FIFO), EOF only indicates that the writer has closed
-					// but doesn't mean we should terminate the transport
-					if len(line) > 0 {
-						// If we read some data before the EOF, process it
-						t.incomingMessages <- line
-					}
-					// Wait a short interval before trying to read again
-					time.Sleep(100 * time.Millisecond)
-					continue
-				} else {
-					// Other reading errors
-					logging.Error(t.logger, "error reading from stdin", "error", err)
-					// Add significant sleep to prevent CPU spinning on repeated errors
-					time.Sleep(100 * time.Millisecond)
-					continue
+			// Process data if we have any
+			if len(readData) > 0 {
+				select {
+				case dataChannel <- readData:
+					// Successfully sent data
+				case <-t.done:
+					// Transport is closing, exit
+					return
 				}
 			}
 
-			if len(line) > 0 {
-				// Add the message to the incoming messages channel
-				t.incomingMessages <- line
-			} else {
-				// Empty line, sleep a bit to prevent CPU spinning
-				time.Sleep(10 * time.Millisecond)
+			// Handle errors
+			if readErr != nil {
+				if readErr == io.EOF {
+					// EOF is normal when writer closes, just log at debug level
+					// logging.Debug(t.logger, "readLoop: EOF reached")
+				} else {
+					// Log other errors
+					logging.Error(t.logger, "error reading from stdin", "error", readErr)
+				}
+
+				// Small backoff on error to prevent CPU spinning
+				select {
+				case <-time.After(100 * time.Millisecond):
+					// Continue after backoff
+				case <-t.done:
+					// Transport is closing, exit
+					return
+				}
+			}
+		}
+	}()
+
+	// Main loop: process data and check for termination
+	for {
+		select {
+		case <-t.done:
+			logging.Debug(t.logger, "readLoop: done")
+			return
+		case data := <-dataChannel:
+			// Process each message as it arrives
+			trimmedData := bytes.TrimSpace(data)
+			if len(trimmedData) > 0 {
+				t.incomingMessages <- trimmedData
 			}
 		}
 	}
@@ -166,17 +158,40 @@ func (t *STDIOTransport) Send(ctx context.Context, data []byte) error {
 	data = append(data, '\n')
 
 	// Write the message to standard output
+	// logging.Debug(t.logger, "Send: writing to stdout", "data", string(data))
 	_, err := t.writer.Write(data)
 	return err
 }
 
 // Receive receives a message from the sender
 func (t *STDIOTransport) Receive(ctx context.Context) ([]byte, error) {
+	// Add a timeout if not already present in the context
+	var cancel context.CancelFunc = func() {}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		// If no deadline is set, use a reasonable default (500ms)
+		ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+	} else {
+		// If deadline is very far in the future, add a more reasonable timeout
+		if time.Until(deadline) > 30*time.Second {
+			ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
+			defer cancel()
+		}
+	}
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case data := <-t.incomingMessages:
+	case data, ok := <-t.incomingMessages:
+		if !ok {
+			return nil, fmt.Errorf("channel closed")
+		}
 		return data, nil
+	case <-time.After(50 * time.Millisecond):
+		// Add a shorter timeout to prevent blocking indefinitely
+		// This will allow us to check ctx.Done() more frequently
+		return nil, fmt.Errorf("no message available")
 	}
 }
 

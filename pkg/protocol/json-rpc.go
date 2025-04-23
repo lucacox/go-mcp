@@ -158,6 +158,7 @@ func (d *JSONRPCDispatcher) receiveLoop() {
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
+			// logging.Debug(d.logger, "receiveLoop: received data", "data", string(data))
 
 			var message JSONRPCMessage
 			if err := json.Unmarshal(data, &message); err != nil {
@@ -185,18 +186,24 @@ func (d *JSONRPCDispatcher) receiveLoop() {
 
 // handleRequest handles an RPC request
 func (d *JSONRPCDispatcher) handleRequest(ctx context.Context, msg *JSONRPCMessage) {
+	// Create a new context with a longer timeout for processing the request
+	// This ensures that even if the parent context has a short timeout,
+	// the handler has enough time to process the request
+	requestCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	if d.handler == nil {
 		// Send a method not supported error
 		d.sendErrorResponse(ctx, msg.ID, -32601, "Method not found", nil)
 		return
 	}
 
-	// Aggiungi l'ID della sessione al contesto, se presente
+	// Add the session ID to the context if present
 	if d.sessionID != "" {
-		ctx = WithSessionID(ctx, d.sessionID)
+		requestCtx = WithSessionID(requestCtx, d.sessionID)
 	}
 
-	result, err := d.handler.HandleRequest(ctx, msg.Method, msg.Params)
+	result, err := d.handler.HandleRequest(requestCtx, msg.Method, msg.Params)
 	if err != nil {
 		// Handle the error
 		code := -32603 // Internal error
